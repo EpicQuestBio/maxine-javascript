@@ -26,6 +26,8 @@ class VerticalLineRing {
 		for (var i = 0; i < numBoxes; i++) {
 			this.fakeBottoms.push(Math.floor(Math.random() * (-this.lineExtent - 1)));
 		}
+
+		this.spikeAtBox = new Array(numBoxes).fill(false);
 	}
 
 	advanceOneFrame() {
@@ -33,29 +35,35 @@ class VerticalLineRing {
 		this.tops = this.fakeTops;
 		this.bottoms = this.fakeBottoms;
 
-		var first = this.tops.shift();
-		this.tops.push(Math.floor(Math.random() * (this.lineExtent + 1)));
+		this.tops[this.presentBox] = Math.floor(Math.random() * (this.lineExtent + 1));
 
-		first = this.bottoms.shift();
-		this.bottoms.push(Math.floor(Math.random() * (this.lineExtent + 1)));
+		this.bottoms[this.presentBox] = Math.floor(Math.random() * (this.lineExtent + 1));
+
+		this.spikeAtBox[(this.presentBox + 1) % numBoxes] = false;
+	}
+
+	addSpike() {
+		this.spikeAtBox[this.presentBox] = true;  // spike at the current cursor location
+		console.log("adding spike to " + this.presentBox);
 	}
 
 	draw(graphics) {
-		var numLines = this.tops.length;
-		var dataStartBox = (this.presentBox - numLines) % numBoxes;
 		// Draw the vertical lines
-		for (var i = 0; i < numLines; i++) {
-			const brightness = Math.floor(255 * i / numBoxes)
-			//color = [brightness, brightness, 0]
-			const color = 0x00ff00
-
+		for (var i = 0; i < numBoxes; i++) {
+			var color;
+			if (this.spikeAtBox[i] == true) {
+				console.log("Drawing spike at " + i)
+				color = 0xffffff;
+			} else {
+				color = 0xff00ff;
+			}
 			var top = this.tops[i];
 			var bottom = this.bottoms[i];
 
-			var angle = ((dataStartBox + i) * 360 / numBoxes) % 360;
+			var angle = (i * 360 / numBoxes) % 360;
 			this.drawLine(graphics, angle, top, bottom, color);
 		}
-		this.drawLine(graphics, this.getPresentAngle(), -2 * this.lineExtent, 0, 0x0000bb);
+		//this.drawLine(graphics, this.getPresentAngle(), -2 * this.lineExtent, 0, 0x00bbbb);
 	}
 
 	getPresentAngle() {
@@ -77,9 +85,7 @@ class VerticalLineRing {
 		var outerCoords = adjustCoordsRing(outerX, outerY);
 
 		graphics.lineStyle(4, color);
-		graphics.moveTo(innerCoords[0], innerCoords[1]);
-		graphics.lineTo(outerCoords[0], outerCoords[1]);
-		graphics.strokePath();
+		graphics.lineBetween(innerCoords[0], innerCoords[1], outerCoords[0], outerCoords[1]);
 
 		// Oops don't remember what this bit does except slow it down
 		//for (var x = 0, y = 0; x < 1000, y < 1000; x++, y++) {

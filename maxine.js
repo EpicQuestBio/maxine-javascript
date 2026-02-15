@@ -115,13 +115,13 @@ function create() {
     this.physics.world.setBounds(0, 0, worldWidth, worldHeight);
 
     // The torus
-    var left = worldCenter[0];// - torusOuterWidth / 2;
-    var top = worldCenter[1];// - torusOuterHeight / 2;
-    torus = this.physics.add.sprite(left, top, 'torus');
-    torus.setOrigin(0.5);
-    // Set the scale between 0 and 1
-    torus.scaleX = torusOuterWidth / 1683;
-    torus.scaleY = torusOuterHeight / 1267;
+    var left = worldCenter[0];
+    var top = worldCenter[1];
+    // torus = this.physics.add.sprite(left, top, 'torus');
+    // torus.setOrigin(0.5);
+    // // Set the scale between 0 and 1
+    // torus.scaleX = torusOuterWidth / 1683;
+    // torus.scaleY = torusOuterHeight / 1267;
 
     // The player and its settings
     player = this.physics.add.sprite(maxineStart[0], maxineStart[1], 'maxine_neutral');
@@ -642,6 +642,9 @@ function makeCannon() {
 }
 
 function addMonster() {
+    // Add a spike to the Vertical Line Ring (VLR)
+    vlr.addSpike();
+
     // Generate a random angle between 0 and 360 degrees
     var randomAngle = Phaser.Math.Between(0, 360);
     var randomNumber = Math.random();
