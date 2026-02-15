@@ -1,4 +1,4 @@
-const debug = true;
+const debug = false;
 
 var config = {
     type: Phaser.AUTO,
@@ -347,8 +347,8 @@ function update() {
     this.graphics.clear();
 
     // Add the lines in the signal ring
-    //vlr.advanceOneFrame()
-    //vlr.draw(this.graphics)
+    vlr.advanceOneFrame()
+    vlr.draw(this.graphics)
 
 
     // Add the spirals if desired. Keep rotation on for a Mushromancer spiral level

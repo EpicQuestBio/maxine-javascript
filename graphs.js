@@ -55,7 +55,7 @@ class VerticalLineRing {
 			var angle = ((dataStartBox + i) * 360 / numBoxes) % 360;
 			this.drawLine(graphics, angle, top, bottom, color);
 		}
-		this.drawLine(graphics, this.getPresentAngle(), -2 * this.lineExtent, 0, 0xbb0000);
+		this.drawLine(graphics, this.getPresentAngle(), -2 * this.lineExtent, 0, 0x0000bb);
 	}
 
 	getPresentAngle() {
@@ -81,8 +81,9 @@ class VerticalLineRing {
 		graphics.lineTo(outerCoords[0], outerCoords[1]);
 		graphics.strokePath();
 
-		for (var x = 0, y = 0; x < 1000, y < 1000; x++, y++) {
-			graphics.fillCircle(x, y, 1);
-		}
+		// Oops don't remember what this bit does except slow it down
+		//for (var x = 0, y = 0; x < 1000, y < 1000; x++, y++) {
+		//	graphics.fillCircle(x, y, 1);
+		//}
 	}
 }
