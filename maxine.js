@@ -42,6 +42,9 @@ var cannonShooting = true;
 var cannonBlastDelay = 500;
 var cannonBlastTimeout = cannonBlastDelay;
 var cannonSporeTimeout = 60;
+var physics;
+var horizontalWalls;
+var verticalWalls;
 
 var game = new Phaser.Game(config);
 var scene;
@@ -97,6 +100,9 @@ function preload() {
     this.load.image('purple_mushroom', 'assets/purple_mushroom.png');
 
     this.load.image('torus', 'assets/torus.png');
+
+    // Labyrinth
+    this.load.image('wall_horizontal', 'assets/wall_horizontal.png');
 
     // load background video
     this.load.video('mountains', 'mountains.mp4', true);
@@ -208,6 +214,9 @@ function create() {
     spinners = this.physics.add.group();
     bouncers = this.physics.add.group();
     cannons = this.physics.add.group();
+    // For the Labyrinth
+    horizontalWalls = this.physics.add.staticGroup();
+    verticalWalls = this.physics.add.staticGroup();
 
     // Start the monster timer
     monsterTimer = this.time.addEvent({
@@ -241,6 +250,11 @@ function create() {
 
     // Set up collision detection between Maxine and the spores
     this.physics.add.overlap(player, projectiles, maxineHitsProjectile, null, this);
+
+    // The Labyrinth
+    this.physics.add.collider(player, horizontalWalls);
+    this.physics.add.collider(player, verticalWalls);
+    physics = this.physics;
 
     // Create the vertical line ring
     vlr = new VerticalLineRing();
@@ -434,6 +448,10 @@ function resetLevel() {
     // Initialize specific levels
     if (level == 4 || level == 5 || level == 6) {
         makeCannon();
+    }
+
+    if (level == 7) {
+        setupLabyrinth();
     }
 }
 
@@ -717,4 +735,11 @@ function drawSpiral(rotation, graphics) {
         [x, y] = adjustCoords(x, y);
         graphics.fillCircle(x, y, 1);
     }
+}
+
+/** Just a prototype to set up a wall with collision */
+function setupLabyrinth() {
+    const wall = physics.add.staticSprite(300, 300, 'wall_horizontal');
+    horizontalWalls.add(wall);
+    console.log("Added wall");
 }

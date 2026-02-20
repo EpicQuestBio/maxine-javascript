@@ -44,7 +44,7 @@ class VerticalLineRing {
 
 	addSpike() {
 		this.spikeAtBox[this.presentBox] = true;  // spike at the current cursor location
-		console.log("adding spike to " + this.presentBox);
+		//console.log("adding spike to " + this.presentBox);
 	}
 
 	draw(graphics) {
@@ -52,7 +52,7 @@ class VerticalLineRing {
 		for (var i = 0; i < numBoxes; i++) {
 			var color;
 			if (this.spikeAtBox[i] == true) {
-				console.log("Drawing spike at " + i)
+				//console.log("Drawing spike at " + i)
 				color = 0xffffff;
 			} else {
 				color = 0xff00ff;
