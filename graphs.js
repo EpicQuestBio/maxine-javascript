@@ -132,6 +132,14 @@ class VerticalLineRing {
 		// Server-driven spike event queue for game logic
 		this.pendingSpikeEvents = 0;
 		this.lastPacketHadSpike = false;
+
+		// Latest packet summary for game logic (live mode)
+		this.lastPacketSummary = null;
+
+		// Short history for persistence scoring
+		this.recentSpikeFlags = [];   // array of 0/1
+		this.recentSpanValues = [];   // recent packet spans (for normalization)
+		this.recentHistoryMax = 12;
 	}
 
 	setServerUrl(url) {
@@ -245,6 +253,37 @@ class VerticalLineRing {
 		if (aggMin === null || aggMax === null) return;
 		const aggMean = meanCount > 0 ? (meanSum / meanCount) : ((aggMin + aggMax) / 2);
 
+		const aggSpan = Math.max(0, aggMax - aggMin);
+
+		// Track recent packet history for normalization + persistence
+		this.recentSpikeFlags.push(anySpike ? 1 : 0);
+		this.recentSpanValues.push(aggSpan);
+
+		if (this.recentSpikeFlags.length > this.recentHistoryMax) this.recentSpikeFlags.shift();
+		if (this.recentSpanValues.length > this.recentHistoryMax) this.recentSpanValues.shift();
+
+		// Persistence = fraction of recent packets that were spikes
+		let spikeCount = 0;
+		for (let i = 0; i < this.recentSpikeFlags.length; i++) spikeCount += this.recentSpikeFlags[i];
+		const persistence = this.recentSpikeFlags.length > 0 ? (spikeCount / this.recentSpikeFlags.length) : 0;
+
+		// Normalize span against recent history (robust for sim vs real)
+		let maxRecentSpan = 1e-6;
+		for (let i = 0; i < this.recentSpanValues.length; i++) {
+			if (this.recentSpanValues[i] > maxRecentSpan) maxRecentSpan = this.recentSpanValues[i];
+		}
+		const spanNorm = Math.max(0, Math.min(1, aggSpan / maxRecentSpan));
+
+		this.lastPacketSummary = {
+			hadSpike: !!anySpike,
+			span: aggSpan,
+			spanNorm: spanNorm,
+			persistence: persistence,
+			mean: aggMean,
+			min: aggMin,
+			max: aggMax
+		};
+
 		// Write a SINGLE slot for this packet
 		const slot = this.presentBox;
 		this.rawBottom[slot] = aggMin;
@@ -270,6 +309,10 @@ class VerticalLineRing {
 		// Recompute global ring extents and rescale whole ring
 		this.recomputeRingScale();
 		this.rescaleDisplayArrays();
+	}
+
+	getLastPacketSummary() {
+		return this.lastPacketSummary;
 	}
 
 	recomputeRingScale() {

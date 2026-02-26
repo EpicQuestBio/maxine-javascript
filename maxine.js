@@ -195,6 +195,38 @@ function disconnectSignalRing() {
     setSignalControlsStatus("Live disconnected");
 }
 
+function chooseMonsterTypeFromSignal() {
+    // Fallback safely if no live packet summary exists yet
+    if (!vlr || typeof vlr.getLastPacketSummary !== "function") {
+        return "pink"; // middle difficulty fallback
+    }
+
+    var s = vlr.getLastPacketSummary();
+    if (!s) return "pink";
+
+    var intensity = Number(s.spanNorm || 0);       // 0..1 relative to recent spans
+    var persistence = Number(s.persistence || 0);  // 0..1 fraction of recent spike packets
+
+    // ---- Simple 2D mapping (tune by feel) ----
+    // Easy: short/weak isolated events
+    if (intensity < 0.6 && persistence < 0.10) {
+        return "spin";
+    }
+
+    // Hard: strong + sustained
+    if (intensity >= 0.70 && persistence >= 0.15) {
+        return "doom";
+    }
+
+    // Rare "jump scare": very strong spike even if not persistent
+    // if (intensity >= 0.90) {
+    //     return "doom";
+    // }
+
+    // Otherwise medium
+    return "pink";
+}
+
 function create() {
     // // Set up the background video
     // bgVideo = this.add.video(0, 0, 'mountains').setOrigin(0);
@@ -473,7 +505,7 @@ function update() {
         var serverSpikesToUse = vlr.consumePendingSpikeEvents(2);
 
         for (var i = 0; i < serverSpikesToUse; i++) {
-            addMonster.call(this);
+            addMonsterFromSignal.call(this);
         }
     }
 
@@ -526,6 +558,18 @@ function update() {
     }
 
     updateStatusBar();
+
+    if (debug && signalMode === "live" && vlr && typeof vlr.getLastPacketSummary === "function") {
+        var s = vlr.getLastPacketSummary();
+        if (s && (signalStatusRefreshTick === 0) && !!s.hadSpike) {
+            console.log("signal", {
+                spanNorm: Number(s.spanNorm || 0).toFixed(2),
+                persistence: Number(s.persistence || 0).toFixed(2),
+                hadSpike: !!s.hadSpike,
+                monsterKind: chooseMonsterTypeFromSignal()
+            });
+        }
+    }
 }
 
 function updateStatusBar() {
@@ -781,6 +825,7 @@ function makeCannon() {
     });
 }
 
+// Just for random mode
 function addMonster() {
     // Add a spike to the Vertical Line Ring (VLR)
     // In random mode, visually mark the ring when a monster spawns.
@@ -788,7 +833,7 @@ function addMonster() {
     if (signalMode !== "live") {
         vlr.addSpike();
     }
-    
+
     // Generate a random angle between 0 and 360 degrees
     var randomAngle = Phaser.Math.Between(0, 360);
     var randomNumber = Math.random();
@@ -827,6 +872,26 @@ function addMonster() {
     }
 }
 
+function addMonsterFromSignal() {
+    // In live mode, we still want the same angle-based placement style
+    // for mushroom/bouncer spawns.
+    var randomAngle = Phaser.Math.Between(0, 360);
+
+    // Default to medium if signal summary isn't ready yet
+    var kind = "pink";
+    if (typeof chooseMonsterTypeFromSignal === "function") {
+        kind = chooseMonsterTypeFromSignal();
+    }
+
+    if (kind === "spin") {
+        makeSpinner.call(this);
+    } else if (kind === "doom") {
+        makeBouncer.call(this, randomAngle);
+    } else {
+        // "pink" fallback
+        makeMushroom.call(this, randomAngle);
+    }
+}
 
 function mushroomSporeTimer(mush) {
     // Check if the mushroom exists and is far enough from the player
