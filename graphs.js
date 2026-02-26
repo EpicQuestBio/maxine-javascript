@@ -129,9 +129,9 @@ class VerticalLineRing {
 		this.wsUrl = "ws://localhost:8766";
 		this.ws = null;
 
-		// How many ring slots to consume per incoming packet bar
-		// 1 = one interval bar advances one ring slot.
-		this.writeStride = 1;
+		// Server-driven spike event queue for game logic
+		this.pendingSpikeEvents = 0;
+		this.lastPacketHadSpike = false;
 	}
 
 	setServerUrl(url) {
@@ -212,34 +212,62 @@ class VerticalLineRing {
 			packetBaseline = n > 0 ? (sum / n) : 0;
 		}
 
-		// Smooth baseline a little so ring doesn't "breathe" too hard packet-to-packet.
+		// Smooth baseline so ring doesn't "breathe" too hard packet-to-packet
 		if (!Number.isFinite(this.ringBaseline)) this.ringBaseline = packetBaseline;
 		this.ringBaseline = (0.85 * this.ringBaseline) + (0.15 * packetBaseline);
 
-		// Write each interval bar into successive fixed ring slots
+		// ---- Aggregate all packet bars into ONE write-bar ----
+		let aggMin = null;
+		let aggMax = null;
+		let meanSum = 0;
+		let meanCount = 0;
+		let anySpike = false;
+
 		for (let i = 0; i < bars.length; i++) {
 			const b = bars[i];
-			const slot = this.presentBox;
-
 			const bMin = Number(b.min);
 			const bMax = Number(b.max);
 			const bMean = Number(b.mean);
 
-			if (!Number.isFinite(bMin) || !Number.isFinite(bMax)) {
-				continue;
+			if (Number.isFinite(bMin)) {
+				if (aggMin === null || bMin < aggMin) aggMin = bMin;
 			}
-
-			this.rawBottom[slot] = bMin;
-			this.rawTop[slot] = bMax;
-			this.rawMean[slot] = Number.isFinite(bMean) ? bMean : (bMin + bMax) / 2;
-			this.spikeAtBox[slot] = !!b.spike;
-			this.hasData[slot] = true;
-
-			// Advance moving cursor around fixed slots
-			this.presentBox = (this.presentBox + this.writeStride) % numBoxes;
+			if (Number.isFinite(bMax)) {
+				if (aggMax === null || bMax > aggMax) aggMax = bMax;
+			}
+			if (Number.isFinite(bMean)) {
+				meanSum += bMean;
+				meanCount++;
+			}
+			if (b.spike) anySpike = true;
 		}
 
-		// Recompute global ring extents from stored slots, then rescale all display lines.
+		if (aggMin === null || aggMax === null) return;
+		const aggMean = meanCount > 0 ? (meanSum / meanCount) : ((aggMin + aggMax) / 2);
+
+		// Write a SINGLE slot for this packet
+		const slot = this.presentBox;
+		this.rawBottom[slot] = aggMin;
+		this.rawTop[slot] = aggMax;
+		this.rawMean[slot] = aggMean;
+
+		this.spikeAtBox[slot] = anySpike;
+		this.hasData[slot] = true;
+
+		// Queue spike events for the game to consume.
+		// One packet can produce at most one monster spawn event here.
+		// (This keeps pacing controlled and matches "aggregated bar per packet".)
+		if (anySpike) {
+			this.pendingSpikeEvents += 1;
+			this.lastPacketHadSpike = true;
+		} else {
+			this.lastPacketHadSpike = false;
+		}
+
+		// Advance cursor by one slot per packet
+		this.presentBox = (this.presentBox + 1) % numBoxes;
+
+		// Recompute global ring extents and rescale whole ring
 		this.recomputeRingScale();
 		this.rescaleDisplayArrays();
 	}
@@ -309,6 +337,19 @@ class VerticalLineRing {
 		// Keep compatibility with existing game calls.
 		// Flash the CURRENT cursor slot (write head position).
 		this.localSpikeDecay[this.presentBox] = 12;
+	}
+
+	consumePendingSpikeEvents(maxCount) {
+		// Returns how many queued server spike events to use this frame.
+		// If maxCount is omitted, consume all.
+		if (!Number.isFinite(maxCount)) {
+			maxCount = this.pendingSpikeEvents;
+		}
+		maxCount = Math.max(0, Math.floor(maxCount));
+
+		const n = Math.min(this.pendingSpikeEvents, maxCount);
+		this.pendingSpikeEvents -= n;
+		return n;
 	}
 
 	getPresentAngle() {

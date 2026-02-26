@@ -30,6 +30,12 @@
     </select>
     Voltage<input id="voltage"></input>mV
 
+    Signal Mode
+    <select id="signalMode" onchange="setSignalMode(this.value)">
+        <option value="random" selected>Random</option>
+        <option value="live">Live Signal</option>
+    </select>
+
     Signal server
     <input id="signalServerUrl" value="ws://localhost:8766" size="26" />
     <button type="button" onclick="connectSignalRing()">Connect Signal</button>

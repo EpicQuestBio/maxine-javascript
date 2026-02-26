@@ -36,6 +36,8 @@ var boomFrames = [];
 var spinshroomFrames = [];
 var mushromancerFrames = [];
 var vlr;
+var signalMode = "random";   // "random" or "live"
+var signalStatusRefreshTick = 0;
 var signalRingStatusTimer = 0;
 var bgVideo;
 var masterSpiralRotation = 0;
@@ -117,19 +119,6 @@ function getSignalServerUrlFromControls() {
     return el.value.trim();
 }
 
-function connectSignalRing() {
-    if (!vlr || typeof vlr.connect !== "function") return;
-    var url = getSignalServerUrlFromControls();
-    vlr.connect(url);
-    setSignalControlsStatus("Connecting to " + url + "...");
-}
-
-function disconnectSignalRing() {
-    if (!vlr || typeof vlr.disconnect !== "function") return;
-    vlr.disconnect();
-    setSignalControlsStatus("Signal ring disconnected");
-}
-
 function setSignalControlsStatus(message) {
     var el = document.getElementById("signalConnStatus");
     if (el) el.textContent = message;
@@ -138,18 +127,72 @@ function setSignalControlsStatus(message) {
 function refreshSignalControlsStatus() {
     if (!vlr) return;
 
+    if (signalMode === "random") {
+        setSignalControlsStatus("Random mode");
+        return;
+    }
+
     var msg = "";
     if (vlr.connected) {
-        msg = "Connected";
+        msg = "Live connected";
         if (vlr.lastSource) msg += " (" + vlr.lastSource + ")";
-        if (vlr.lastPacketTs) {
-            msg += " • packet age " + (Date.now() - vlr.lastPacketTs) + " ms";
-        }
+        if (vlr.lastPacketTs) msg += " • " + (Date.now() - vlr.lastPacketTs) + " ms";
     } else {
-        msg = "Disconnected";
+        msg = "Live disconnected";
         if (vlr.lastError) msg += " • " + vlr.lastError;
     }
     setSignalControlsStatus(msg);
+}
+
+function setSignalMode(mode) {
+    if (mode !== "live") mode = "random";
+    signalMode = mode;
+
+    if (!vlr) return;
+
+    if (signalMode === "live") {
+        // Use the live WebSocket-backed signal ring
+        vlr = new VerticalLineRing();
+        var url = getSignalServerUrlFromControls();
+        if (typeof vlr.setServerUrl === "function") vlr.setServerUrl(url);
+
+        // Stop timeout-based monster spawning in live mode
+        if (monsterTimer) {
+            monsterTimer.paused = true;
+        }
+
+        setSignalControlsStatus("Live mode (not connected)");
+    } else {
+        // Use the old random ring behavior
+        if (typeof vlr.disconnect === "function") {
+            vlr.disconnect();
+        }
+        vlr = new RandomVerticalLineRing();
+
+        // Re-enable timeout-based spawning in random mode
+        if (monsterTimer) {
+            monsterTimer.paused = false;
+        }
+
+        setSignalControlsStatus("Random mode");
+    }
+}
+
+function connectSignalRing() {
+    if (!vlr || signalMode !== "live") {
+        setSignalControlsStatus("Switch Signal Mode to Live first");
+        return;
+    }
+    if (typeof vlr.connect !== "function") return;
+    var url = getSignalServerUrlFromControls();
+    vlr.connect(url);
+    setSignalControlsStatus("Connecting to " + url + "...");
+}
+
+function disconnectSignalRing() {
+    if (!vlr || signalMode !== "live") return;
+    if (typeof vlr.disconnect === "function") vlr.disconnect();
+    setSignalControlsStatus("Live disconnected");
 }
 
 function create() {
@@ -299,8 +342,18 @@ function create() {
     physics = this.physics;
 
     // Create the vertical line ring
-    //vlr = new RandomVerticalLineRing(); // Old random version
-    vlr = new VerticalLineRing(); // now live WS-driven (class in graphs.js)
+    // Start in random mode by default (safe fallback)
+    vlr = new RandomVerticalLineRing();
+    // Sync UI mode selector if present
+    var modeSelect = document.getElementById("signalMode");
+    if (modeSelect) {
+        signalMode = modeSelect.value || "random";
+        if (signalMode !== "random") {
+            setSignalMode(signalMode);
+        } else {
+            setSignalControlsStatus("Random mode");
+        }
+    }
 
     var urlInput = document.getElementById("signalServerUrl");
     if (urlInput && typeof vlr.setServerUrl === "function") {
@@ -413,6 +466,22 @@ function update() {
     vlr.advanceOneFrame()
     vlr.draw(this.graphics)
 
+    // In live mode, use server spike events to drive monster spawning
+    // instead of timeout-based spawning.
+    if (signalMode === "live" && vlr && typeof vlr.consumePendingSpikeEvents === "function") {
+        // Cap per-frame spawns to avoid sudden bursts if packets queue up.
+        var serverSpikesToUse = vlr.consumePendingSpikeEvents(2);
+
+        for (var i = 0; i < serverSpikesToUse; i++) {
+            addMonster.call(this);
+        }
+    }
+
+    // Refresh the signal connection status text occasionally (not every frame)
+    signalStatusRefreshTick = (signalStatusRefreshTick + 1) % 15;
+    if (signalStatusRefreshTick === 0) {
+        refreshSignalControlsStatus();
+    }
 
     // Add the spirals if desired. Keep rotation on for a Mushromancer spiral level
     masterSpiralRotation = (masterSpiralRotation + 1) % 360;
@@ -714,8 +783,12 @@ function makeCannon() {
 
 function addMonster() {
     // Add a spike to the Vertical Line Ring (VLR)
-    vlr.addSpike();
-
+    // In random mode, visually mark the ring when a monster spawns.
+    // In live mode, the ring already shows server-derived spikes.
+    if (signalMode !== "live") {
+        vlr.addSpike();
+    }
+    
     // Generate a random angle between 0 and 360 degrees
     var randomAngle = Phaser.Math.Between(0, 360);
     var randomNumber = Math.random();
@@ -742,12 +815,16 @@ function addMonster() {
     }
 
     // Restart the monster timer with a new random delay
-    monsterTimer.reset({
-        delay: Phaser.Math.Between(2000, 6000),
-        callback: addMonster,
-        callbackScope: this,
-        loop: true
-    });
+    // In random mode, keep timer-based pacing.
+    // In live signal mode, spawns come from server spike events instead.
+    if (signalMode !== "live") {
+        monsterTimer.reset({
+            delay: Phaser.Math.Between(2000, 6000),
+            callback: addMonster,
+            callbackScope: this,
+            loop: true
+        });
+    }
 }
 
 
