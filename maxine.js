@@ -36,6 +36,7 @@ var boomFrames = [];
 var spinshroomFrames = [];
 var mushromancerFrames = [];
 var vlr;
+var signalRingStatusTimer = 0;
 var bgVideo;
 var masterSpiralRotation = 0;
 var cannonShooting = true;
@@ -108,6 +109,47 @@ function preload() {
     this.load.video('mountains', 'mountains.mp4', true);
 
     scene = this;
+}
+
+function getSignalServerUrlFromControls() {
+    var el = document.getElementById("signalServerUrl");
+    if (!el || !el.value) return "ws://localhost:8766";
+    return el.value.trim();
+}
+
+function connectSignalRing() {
+    if (!vlr || typeof vlr.connect !== "function") return;
+    var url = getSignalServerUrlFromControls();
+    vlr.connect(url);
+    setSignalControlsStatus("Connecting to " + url + "...");
+}
+
+function disconnectSignalRing() {
+    if (!vlr || typeof vlr.disconnect !== "function") return;
+    vlr.disconnect();
+    setSignalControlsStatus("Signal ring disconnected");
+}
+
+function setSignalControlsStatus(message) {
+    var el = document.getElementById("signalConnStatus");
+    if (el) el.textContent = message;
+}
+
+function refreshSignalControlsStatus() {
+    if (!vlr) return;
+
+    var msg = "";
+    if (vlr.connected) {
+        msg = "Connected";
+        if (vlr.lastSource) msg += " (" + vlr.lastSource + ")";
+        if (vlr.lastPacketTs) {
+            msg += " • packet age " + (Date.now() - vlr.lastPacketTs) + " ms";
+        }
+    } else {
+        msg = "Disconnected";
+        if (vlr.lastError) msg += " • " + vlr.lastError;
+    }
+    setSignalControlsStatus(msg);
 }
 
 function create() {
@@ -257,7 +299,14 @@ function create() {
     physics = this.physics;
 
     // Create the vertical line ring
-    vlr = new VerticalLineRing();
+    //vlr = new RandomVerticalLineRing(); // Old random version
+    vlr = new VerticalLineRing(); // now live WS-driven (class in graphs.js)
+
+    var urlInput = document.getElementById("signalServerUrl");
+    if (urlInput && typeof vlr.setServerUrl === "function") {
+        vlr.setServerUrl(urlInput.value || "ws://localhost:8766");
+    }
+    refreshSignalControlsStatus();
 
     this.graphics = this.add.graphics();
 
@@ -402,6 +451,10 @@ function update() {
         }
     }
 
+    signalRingStatusTimer = (signalRingStatusTimer + 1) % 15;
+    if (signalRingStatusTimer === 0) {
+        refreshSignalControlsStatus();
+    }
 
     updateStatusBar();
 }

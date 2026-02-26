@@ -29,6 +29,13 @@
         <option value="7">Labyrinth of the Dragon Tyrant</option>
     </select>
     Voltage<input id="voltage"></input>mV
+
+    Signal server
+    <input id="signalServerUrl" value="ws://localhost:8766" size="26" />
+    <button type="button" onclick="connectSignalRing()">Connect Signal</button>
+    <button type="button" onclick="disconnectSignalRing()">Disconnect</button>
+    <span id="signalConnStatus">Disconnected</span>
+
     <marquee id="statusBar">Welcome to Maxine's Quest!</marquee>
 
     <!-- This script sets up the canvas so put it where you want the canvas to be. :) -->
