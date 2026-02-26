@@ -96,17 +96,32 @@ class RandomVerticalLineRing {
 
 class VerticalLineRing {
 	// Live signal ring fed by the Python WebSocket server.
-	// Keeps the same public methods the game already calls:
-	//   advanceOneFrame(), addSpike(), draw(graphics)
-	// so maxine.js doesn't have to change much.
+	// Fixed slots around the ellipse; new packets write into the next slot(s).
+	// Public methods kept compatible with existing game loop calls.
 	constructor() {
-		this.presentBox = 0;
+		this.presentBox = 0;         // moving cursor / write head
 		this.lineExtent = 25;
 
+		// Raw values stored per slot (relative to baseline-independent raw signal values)
+		this.rawTop = new Array(numBoxes).fill(0);      // interval max
+		this.rawBottom = new Array(numBoxes).fill(0);   // interval min
+		this.rawMean = new Array(numBoxes).fill(0);
+		this.hasData = new Array(numBoxes).fill(false);
+
+		// Display values (scaled to lineExtent after global rescale)
 		this.tops = new Array(numBoxes).fill(0);
 		this.bottoms = new Array(numBoxes).fill(0);
-		this.spikeAtBox = new Array(numBoxes).fill(false);
 
+		// Spike flags and optional local flashes
+		this.spikeAtBox = new Array(numBoxes).fill(false);
+		this.localSpikeDecay = new Array(numBoxes).fill(0);
+
+		// Scaling state for whole ring
+		this.ringBaseline = 0;
+		this.ringMinSeen = null;
+		this.ringMaxSeen = null;
+
+		// Connection state
 		this.connected = false;
 		this.lastPacketTs = 0;
 		this.lastSource = "none";
@@ -114,8 +129,9 @@ class VerticalLineRing {
 		this.wsUrl = "ws://localhost:8766";
 		this.ws = null;
 
-		// Optional local flash overlay if game code calls addSpike()
-		this.localSpikeDecay = new Array(numBoxes).fill(0);
+		// How many ring slots to consume per incoming packet bar
+		// 1 = one interval bar advances one ring slot.
+		this.writeStride = 1;
 	}
 
 	setServerUrl(url) {
@@ -127,7 +143,6 @@ class VerticalLineRing {
 	connect(url) {
 		if (url) this.setServerUrl(url);
 
-		// If already open/opening, don't double-connect
 		if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) {
 			return;
 		}
@@ -163,8 +178,6 @@ class VerticalLineRing {
 			} catch (e) {
 				return;
 			}
-
-			// Python server sends hello + mq_tick
 			if (msg.type === "mq_tick") {
 				this.applyTick(msg);
 			}
@@ -179,47 +192,101 @@ class VerticalLineRing {
 		this.connected = false;
 	}
 
+	// --- Core behavior: fixed slots + moving cursor ---
 	applyTick(tick) {
 		this.lastPacketTs = Date.now();
 		this.lastSource = tick.source || "unknown";
 
 		const ig = tick.interval_graph || {};
 		const bars = Array.isArray(ig.bars) ? ig.bars : [];
-
 		if (!bars.length) return;
 
-		// Build full-ring arrays from interval bars.
-		// We map each interval bar onto a contiguous slice of numBoxes.
-		const barMins = bars.map(b => Number(b.min));
-		const barMaxs = bars.map(b => Number(b.max));
-		const barMeans = bars.map(b => Number(b.mean));
-
-		// Prefer provided baseline, otherwise mean of bar means
-		let baseline = Number(ig.baseline);
-		if (!Number.isFinite(baseline)) {
-			baseline = barMeans.reduce((a, b) => a + b, 0) / Math.max(1, barMeans.length);
+		// Use server-provided baseline if available; otherwise derive from bars
+		let packetBaseline = Number(ig.baseline);
+		if (!Number.isFinite(packetBaseline)) {
+			let sum = 0, n = 0;
+			for (let i = 0; i < bars.length; i++) {
+				const m = Number(bars[i].mean);
+				if (Number.isFinite(m)) { sum += m; n++; }
+			}
+			packetBaseline = n > 0 ? (sum / n) : 0;
 		}
 
-		// Dynamic scale so the ring uses most of lineExtent
-		let maxAbsDev = 1e-6;
+		// Smooth baseline a little so ring doesn't "breathe" too hard packet-to-packet.
+		if (!Number.isFinite(this.ringBaseline)) this.ringBaseline = packetBaseline;
+		this.ringBaseline = (0.85 * this.ringBaseline) + (0.15 * packetBaseline);
+
+		// Write each interval bar into successive fixed ring slots
 		for (let i = 0; i < bars.length; i++) {
-			maxAbsDev = Math.max(maxAbsDev, Math.abs(barMaxs[i] - baseline), Math.abs(barMins[i] - baseline));
+			const b = bars[i];
+			const slot = this.presentBox;
+
+			const bMin = Number(b.min);
+			const bMax = Number(b.max);
+			const bMean = Number(b.mean);
+
+			if (!Number.isFinite(bMin) || !Number.isFinite(bMax)) {
+				continue;
+			}
+
+			this.rawBottom[slot] = bMin;
+			this.rawTop[slot] = bMax;
+			this.rawMean[slot] = Number.isFinite(bMean) ? bMean : (bMin + bMax) / 2;
+			this.spikeAtBox[slot] = !!b.spike;
+			this.hasData[slot] = true;
+
+			// Advance moving cursor around fixed slots
+			this.presentBox = (this.presentBox + this.writeStride) % numBoxes;
 		}
+
+		// Recompute global ring extents from stored slots, then rescale all display lines.
+		this.recomputeRingScale();
+		this.rescaleDisplayArrays();
+	}
+
+	recomputeRingScale() {
+		let minSeen = null;
+		let maxSeen = null;
+
+		for (let i = 0; i < numBoxes; i++) {
+			if (!this.hasData[i]) continue;
+
+			const lo = this.rawBottom[i];
+			const hi = this.rawTop[i];
+
+			if (minSeen === null || lo < minSeen) minSeen = lo;
+			if (maxSeen === null || hi > maxSeen) maxSeen = hi;
+		}
+
+		this.ringMinSeen = minSeen;
+		this.ringMaxSeen = maxSeen;
+	}
+
+	rescaleDisplayArrays() {
+		// Scale around the (smoothed) baseline so prior slots can resize when ring min/max changes.
+		let maxAbsDev = 1e-6;
+
+		for (let i = 0; i < numBoxes; i++) {
+			if (!this.hasData[i]) continue;
+			maxAbsDev = Math.max(
+				maxAbsDev,
+				Math.abs(this.rawTop[i] - this.ringBaseline),
+				Math.abs(this.rawBottom[i] - this.ringBaseline)
+			);
+		}
+
 		const scale = this.lineExtent / maxAbsDev;
 
 		for (let i = 0; i < numBoxes; i++) {
-			const barIdx = Math.floor(i * bars.length / numBoxes);
-			const b = bars[barIdx];
-			const bMin = Number(b.min);
-			const bMax = Number(b.max);
+			if (!this.hasData[i]) {
+				this.tops[i] = 0;
+				this.bottoms[i] = 0;
+				continue;
+			}
 
-			// Signed offsets around ringRadius:
-			// "top" = max excursion, "bottom" = min excursion
-			// (drawLine handles negative values, which looks good for in/out ring motion)
-			let top = Math.round((bMax - baseline) * scale);
-			let bottom = Math.round((bMin - baseline) * scale);
+			let top = Math.round((this.rawTop[i] - this.ringBaseline) * scale);
+			let bottom = Math.round((this.rawBottom[i] - this.ringBaseline) * scale);
 
-			// Clamp to visual extent
 			if (top > this.lineExtent) top = this.lineExtent;
 			if (top < -this.lineExtent) top = -this.lineExtent;
 			if (bottom > this.lineExtent) bottom = this.lineExtent;
@@ -227,18 +294,12 @@ class VerticalLineRing {
 
 			this.tops[i] = top;
 			this.bottoms[i] = bottom;
-			this.spikeAtBox[i] = !!b.spike;
 		}
-
-		// Optional: use packet timestamp/cursor-ish motion to move highlight location
-		this.presentBox = (this.presentBox + 1) % numBoxes;
 	}
 
 	advanceOneFrame() {
-		// This class is packet-driven, not frame-driven.
-		// Keep tiny housekeeping only (cursor + decay of local spikes).
-		this.presentBox = (this.presentBox + 1) % numBoxes;
-
+		// Packet-driven ring: do not generate/shift data here.
+		// Just decay local flashes for compatibility with game events.
 		for (let i = 0; i < numBoxes; i++) {
 			if (this.localSpikeDecay[i] > 0) this.localSpikeDecay[i]--;
 		}
@@ -246,7 +307,7 @@ class VerticalLineRing {
 
 	addSpike() {
 		// Keep compatibility with existing game calls.
-		// If game logic adds a spike locally, briefly flash it on top of server data.
+		// Flash the CURRENT cursor slot (write head position).
 		this.localSpikeDecay[this.presentBox] = 12;
 	}
 
@@ -258,19 +319,24 @@ class VerticalLineRing {
 		for (let i = 0; i < numBoxes; i++) {
 			let color;
 
+			const isCursor = (i === this.presentBox);
 			const localSpike = this.localSpikeDecay[i] > 0;
+			const serverSpike = this.spikeAtBox[i] === true;
+
 			if (localSpike) {
-				color = 0xffffff;        // local game spike flash
-			} else if (this.spikeAtBox[i] === true) {
-				color = 0xffaa33;        // server-detected spike interval
+				color = 0xffffff;     // game flash
+			} else if (serverSpike) {
+				color = 0xffaa33;     // server interval spike
+			} else if (!this.hasData[i]) {
+				color = 0x666666;     // empty slot before stream fills ring
+			} else if (isCursor) {
+				color = 0xff66ff;     // cursor highlight
 			} else {
-				color = 0xff00ff;        // normal ring line
+				color = 0xff00ff;     // normal
 			}
 
-			const top = this.tops[i];
-			const bottom = this.bottoms[i];
 			const angle = (i * 360 / numBoxes) % 360;
-			this.drawLine(graphics, angle, top, bottom, color);
+			this.drawLine(graphics, angle, this.tops[i], this.bottoms[i], color);
 		}
 	}
 
