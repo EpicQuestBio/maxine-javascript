@@ -873,10 +873,17 @@ function addMonster() {
 }
 
 function addMonsterFromSignal() {
-    // In live mode, we still want the same angle-based placement style
-    // for mushroom/bouncer spawns.
-    var randomAngle = Phaser.Math.Between(0, 360);
+    // Spawn near the signal ring cursor angle (where the latest packet was written)
+    var signalAngle = 0;
+    if (vlr && typeof vlr.getPresentAngle === "function") {
+        signalAngle = vlr.getPresentAngle();
+    }
 
+    // Optional small jitter so repeated spawns don't stack perfectly
+    var randomAngle = signalAngle + Phaser.Math.Between(-10, 10);
+    if (randomAngle < 0) randomAngle += 360;
+    if (randomAngle >= 360) randomAngle -= 360;
+    
     // Default to medium if signal summary isn't ready yet
     var kind = "pink";
     if (typeof chooseMonsterTypeFromSignal === "function") {
