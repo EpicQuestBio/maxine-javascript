@@ -48,6 +48,7 @@ var cannonSporeTimeout = 60;
 var physics;
 var horizontalWalls;
 var verticalWalls;
+var lastLiveSignalSpawnTime = 0;
 
 var game = new Phaser.Game(config);
 var scene;
@@ -501,11 +502,23 @@ function update() {
     // In live mode, use server spike events to drive monster spawning
     // instead of timeout-based spawning.
     if (signalMode === "live" && vlr && typeof vlr.consumePendingSpikeEvents === "function") {
-        // Cap per-frame spawns to avoid sudden bursts if packets queue up.
-        var serverSpikesToUse = vlr.consumePendingSpikeEvents(2);
+        var now = Date.now();
 
-        for (var i = 0; i < serverSpikesToUse; i++) {
-            addMonsterFromSignal.call(this);
+        if (now - lastLiveSignalSpawnTime >= 500) {
+            var serverSpikesToUse = vlr.consumePendingSpikeEvents(1);
+
+            if (serverSpikesToUse > 0) {
+                addMonsterFromSignal.call(this);
+                lastLiveSignalSpawnTime = now;
+            }
+        } else {
+            // Cooldown active: drop any queued spikes so old signal doesn't pile up
+            if (typeof vlr.clearPendingSpikeEvents === "function") {
+                vlr.clearPendingSpikeEvents();
+            } else {
+                // fallback if method not added yet
+                vlr.consumePendingSpikeEvents(999999);
+            }
         }
     }
 

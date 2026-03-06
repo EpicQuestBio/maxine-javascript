@@ -395,6 +395,10 @@ class VerticalLineRing {
 		return n;
 	}
 
+	clearPendingSpikeEvents() {
+		this.pendingSpikeEvents = 0;
+	}
+
 	getPresentAngle() {
 		return this.presentBox * 360 / numBoxes;
 	}
