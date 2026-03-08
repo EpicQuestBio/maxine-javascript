@@ -228,6 +228,37 @@ function chooseMonsterTypeFromSignal() {
     return "pink";
 }
 
+function sendGameMonsterSpawnedEvent(monsterType, spawnAngleDeg, triggerSource, signalSummary) {
+    // Reuse the existing live signal WebSocket if available.
+    if (vlr && vlr.ws && vlr.ws.readyState === WebSocket.OPEN) {
+        vlr.ws.send(JSON.stringify({
+            type: "game_monster_spawned",
+            payload: {
+                monster_type: monsterType,
+                spawn_angle_deg: spawnAngleDeg,
+                trigger_source: triggerSource,
+                signal_summary: signalSummary || {}
+            }
+        }));
+    }
+}
+
+function getLatestSignalSummaryForRecording() {
+    if (!vlr || typeof vlr.getLastPacketSummary !== "function") {
+        return {};
+    }
+
+    var s = vlr.getLastPacketSummary();
+    if (!s) return {};
+
+    return {
+        hadSpike: !!s.hadSpike,
+        span: Number(s.span || 0),
+        spanNorm: Number(s.spanNorm || 0),
+        persistence: Number(s.persistence || 0)
+    };
+}
+
 function create() {
     // // Set up the background video
     // bgVideo = this.add.video(0, 0, 'mountains').setOrigin(0);
@@ -911,6 +942,13 @@ function addMonsterFromSignal() {
         // "pink" fallback
         makeMushroom.call(this, randomAngle);
     }
+
+    sendGameMonsterSpawnedEvent(
+        kind,
+        randomAngle,
+        "live_signal",
+        getLatestSignalSummaryForRecording()
+    );
 }
 
 function mushroomSporeTimer(mush) {
