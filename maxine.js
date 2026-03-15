@@ -53,6 +53,9 @@ var lastLiveSignalSpawnTime = 0;
 var game = new Phaser.Game(config);
 var scene;
 
+var showControls = true;
+var controls = null;
+
 function debugWarn(message) {
     if (debug) {
         console.warn(message);
@@ -108,8 +111,17 @@ function preload() {
     // Labyrinth
     this.load.image('wall_horizontal', 'assets/wall_horizontal.png');
 
-    // load background video
-    this.load.video('mountains', 'mountains.mp4', true);
+    // // load background video
+    // this.load.video('mountains', 'mountains.mp4', true);
+
+    // Control panel
+    this.load.image('panel', 'assets/panel.png');
+    this.load.image('knob', 'assets/voltage_knob.png');
+    this.load.image('switch_up', 'assets/switch_big_frame_1.png');
+    this.load.image('switch_down', 'assets/switch_big_frame_2.png');
+
+    // LED font
+    this.load.font('led_font', 'assets/ds-digi.ttf');
 
     scene = this;
 }
@@ -299,16 +311,13 @@ function create() {
     cursors = this.input.keyboard.createCursorKeys();
 
     //  The scores
-    consoleScoreText = this.add.text(16, 16, 'Zavier: 0', { fontSize: '32px', fill: '#0000ff' });
+    consoleScoreText = this.add.text(16, 16, 'Zavier: 0',
+         { fontSize: '32px', fill: '#ffffff', fontFamily: 'led_font' });
     consoleScoreText.setScrollFactor(0);
 
-    challengerScoreText = this.add.text(16, 48, 'Kent: 0', { fontSize: '32px', fill: '#0000ff' });
+    challengerScoreText = this.add.text(16, 48, 'Kent: 0', 
+        { fontSize: '32px', fill: '#ffffff', fontFamily: 'led_font'});
     challengerScoreText.setScrollFactor(0);
-
-    // Add blue rectangle outline representing the world bounds
-    var graphics = this.add.graphics();
-    graphics.lineStyle(4, 0x0000ff, 1);
-    graphics.strokeRect(0, 0, worldWidth, worldHeight);
 
     // Create spore animation
     this.anims.create({
@@ -433,6 +442,11 @@ function create() {
     if (debug) {
         this.debugText = this.add.text(10, 10, '', { fontSize: '16px', fill: '#fff' });
         this.debugText.setScrollFactor(0);
+    }
+
+    // Add controls
+    if (showControls) {
+        controls = new Controls(this);
     }
 }
 
@@ -613,6 +627,14 @@ function update() {
                 monsterKind: chooseMonsterTypeFromSignal()
             });
         }
+    }
+
+    // Option to move the controls around with the mouse cursor so you can find
+    // the right positions.
+    if (controls && controls.activateControlsAdjuster) {
+        const pointer = this.input.activePointer;
+        controls.adjustableObject.setPosition(pointer.x, pointer.y);
+        console.log(`Pointer at (${pointer.x},${pointer.y})`);
     }
 }
 
