@@ -189,6 +189,20 @@ class VerticalLineRing {
 			if (msg.type === "mq_tick") {
 				this.applyTick(msg);
 			}
+
+			if (msg.type === "control_state") {
+				if (typeof applyServerControlStateToPanel === "function") {
+					applyServerControlStateToPanel(msg.payload);
+				}
+				return;
+			}
+
+			if (msg.type === "control_result") {
+				if (typeof handleControlResultMessage === "function") {
+					handleControlResultMessage(msg.payload);
+				}
+				return;
+			}
 		};
 	}
 

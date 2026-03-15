@@ -8,8 +8,9 @@ class Controls {
         this.voltageKnob.setOrigin(0.5);
         this.zapper = scene.add.sprite(2030, 550, 'switch_up');
         this.zapperOn = false;
-        this.voltageSetting = 0
-        this.voltageText = scene.add.text(1850, 560, '0 mV',
+        this.voltageSetting = 0;
+        this.millivolts = 0;
+        this.voltageText = scene.add.text(1850, 560, '0MV',
          { fontSize: '24px', fill: '#ff0000', fontFamily: 'led_font' });
 
         // The object that moves with the mouse in the main update loop if 
@@ -29,13 +30,13 @@ class Controls {
 
             if (localX < halfWidth - 20) {
                 this.setVoltageSetting(-1);
-                this.voltageKnob.angle = -30;
+                //this.voltageKnob.angle = -30;
             } else if (localX > halfWidth + 10) {
                 this.setVoltageSetting(1);
-                this.voltageKnob.angle = +30;
+                //this.voltageKnob.angle = +30;
             } else {
                 this.setVoltageSetting(0);
-                this.voltageKnob.angle = 0;
+                //this.voltageKnob.angle = 0;
             }
 
             console.log("localX = ", localX);
@@ -49,29 +50,56 @@ class Controls {
 
     setVoltageSetting(voltageSetting) {
         this.voltageSetting = voltageSetting;
-        if (voltageSetting < 0) {
-            this.setExactVoltage(-500);
-        } else if (voltageSetting == 0) {
-            this.setExactVoltage(0);
-        } else if (voltageSetting > 0) {
-            this.setExactVoltage(500);
-        }
+        // if (voltageSetting < 0) {
+        //     this.setExactVoltage(-500);
+        // } else if (voltageSetting == 0) {
+        //     this.setExactVoltage(0);
+        // } else if (voltageSetting > 0) {
+        //     this.setExactVoltage(500);
+        // }
     }
 
     triggerZapper() {
-        const zapMilliVolts = 1000;
-        this.setExactVoltage(zapMilliVolts);
+        //const zapMilliVolts = 1000;
+        // this.setExactVoltage(zapMilliVolts);
 
         this.zapperOn = true;
-        this.zapper.setTexture('switch_down');
+        // this.zapper.setTexture('switch_down');
 
-        setTimeout(() => {
-            this.zapperOn = false;
-            this.zapper.setTexture('switch_up');
-            // Set it to the voltage setting set on the knob, even if they turn the knob
-            // while the zapper is on.
-            this.setVoltageSetting(this.voltageSetting);
-        }, 500);
+        // setTimeout(() => {
+        //     this.zapperOn = false;
+        //     this.zapper.setTexture('switch_up');
+        //     // Set it to the voltage setting set on the knob, even if they turn the knob
+        //     // while the zapper is on.
+        //     this.setVoltageSetting(this.voltageSetting);
+        // }, 500);
+    }
 
+    syncVisualState() {
+        // Voltage knob visual
+        if (this.voltageSetting === -1) {
+            this.voltageKnob.angle = -30;
+        } else if (this.voltageSetting === 1) {
+            this.voltageKnob.angle = +30;
+        } else {
+            this.voltageKnob.angle = 0;
+        }
+
+        // Millivolt text
+        if (this.voltageText) {
+            this.voltageText.setText(String(this.millivolts) + "MV");
+        }
+
+        // Zapper visual
+        if (this.zapper) {
+            this.zapper.setTexture(this.zapperOn ? 'switch_down' : 'switch_up');
+        }
+    }
+
+    setShowControls(visible) {
+        this.panel.visible = visible;
+        this.voltageKnob.visible = visible;
+        this.zapper.visible = visible;
+        this.voltageText.visible = visible;
     }
 }

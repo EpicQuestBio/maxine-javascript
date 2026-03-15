@@ -53,8 +53,10 @@ var lastLiveSignalSpawnTime = 0;
 var game = new Phaser.Game(config);
 var scene;
 
-var showControls = true;
 var controls = null;
+
+var lastSentVoltageSetting = null;
+var lastSentZapperOn = false;
 
 function debugWarn(message) {
     if (debug) {
@@ -175,6 +177,7 @@ function setSignalMode(mode) {
         }
 
         setSignalControlsStatus("Live mode (not connected)");
+        controls.setShowControls(true);
     } else {
         // Use the old random ring behavior
         if (typeof vlr.disconnect === "function") {
@@ -188,6 +191,7 @@ function setSignalMode(mode) {
         }
 
         setSignalControlsStatus("Random mode");
+        controls.setShowControls(false);
     }
 }
 
@@ -269,6 +273,46 @@ function getLatestSignalSummaryForRecording() {
         spanNorm: Number(s.spanNorm || 0),
         persistence: Number(s.persistence || 0)
     };
+}
+
+function sendControlIntent(intent, params) {
+    if (!vlr || !vlr.ws || vlr.ws.readyState !== WebSocket.OPEN) {
+        return;
+    }
+
+    vlr.ws.send(JSON.stringify({
+        type: "control_intent",
+        payload: {
+            actor: "player",
+            intent: intent,
+            params: params || {}
+        }
+    }));
+}
+
+function applyServerControlStateToPanel(payload) {
+    if (!controls || !payload) return;
+
+    if (typeof payload.voltage_setting !== "undefined") {
+        controls.voltageSetting = payload.voltage_setting;
+    }
+
+    if (typeof payload.display_millivolts !== "undefined") {
+        controls.millivolts = payload.display_millivolts;
+    }
+
+    if (typeof payload.zapper_active !== "undefined") {
+        controls.zapperOn = !!payload.zapper_active;
+    }
+}
+
+function handleControlResultMessage(payload) {
+    if (!payload) return;
+
+    // Optional: surface friendly status text somewhere
+    if (payload.message && typeof setSignalControlsStatus === "function") {
+        setSignalControlsStatus(payload.message);
+    }
 }
 
 function create() {
@@ -414,26 +458,6 @@ function create() {
     this.physics.add.collider(player, verticalWalls);
     physics = this.physics;
 
-    // Create the vertical line ring
-    // Start in random mode by default (safe fallback)
-    vlr = new RandomVerticalLineRing();
-    // Sync UI mode selector if present
-    var modeSelect = document.getElementById("signalMode");
-    if (modeSelect) {
-        signalMode = modeSelect.value || "random";
-        if (signalMode !== "random") {
-            setSignalMode(signalMode);
-        } else {
-            setSignalControlsStatus("Random mode");
-        }
-    }
-
-    var urlInput = document.getElementById("signalServerUrl");
-    if (urlInput && typeof vlr.setServerUrl === "function") {
-        vlr.setServerUrl(urlInput.value || "ws://localhost:8766");
-    }
-    refreshSignalControlsStatus();
-
     this.graphics = this.add.graphics();
 
     // Initialize the current level.
@@ -445,9 +469,28 @@ function create() {
     }
 
     // Add controls
-    if (showControls) {
-        controls = new Controls(this);
+    controls = new Controls(this);
+
+    // Create the vertical line ring
+    // Start in random mode by default (safe fallback)
+    vlr = new RandomVerticalLineRing();
+    // Sync UI mode selector if present
+    var modeSelect = document.getElementById("signalMode");
+    if (modeSelect) {
+        signalMode = modeSelect.value || "random";
+        if (signalMode !== "random") {
+            setSignalMode(signalMode);
+        } else {
+            setSignalControlsStatus("Random mode");
+            setSignalMode(signalMode);
+        }
     }
+
+    var urlInput = document.getElementById("signalServerUrl");
+    if (urlInput && typeof vlr.setServerUrl === "function") {
+        vlr.setServerUrl(urlInput.value || "ws://localhost:8766");
+    }
+    refreshSignalControlsStatus();
 }
 
 function update() {
@@ -635,6 +678,26 @@ function update() {
         const pointer = this.input.activePointer;
         controls.adjustableObject.setPosition(pointer.x, pointer.y);
         console.log(`Pointer at (${pointer.x},${pointer.y})`);
+    }
+
+    if (signalMode === "live" && controls) {
+        // Send voltage intent when the panel knob changes
+        if (controls.voltageSetting !== lastSentVoltageSetting) {
+            lastSentVoltageSetting = controls.voltageSetting;
+            sendControlIntent("set_voltage_setting", {
+                value: controls.voltageSetting
+            });
+        }
+
+        // Send zap intent on rising edge only
+        if (controls.zapperOn && !lastSentZapperOn) {
+            sendControlIntent("trigger_zapper", {});
+        }
+        lastSentZapperOn = !!controls.zapperOn;
+    }
+
+    if (signalMode === "live" && controls) {
+        controls.syncVisualState();
     }
 }
 
