@@ -62,6 +62,10 @@ var controls = null;
 var lastSentVoltageSetting = null;
 var lastSentZapperOn = false;
 
+var targetSet = false;
+var targetX = null;
+var targetY = null;
+
 function debugWarn(message) {
     if (debug) {
         console.warn(message);
@@ -495,6 +499,13 @@ function create() {
         vlr.setServerUrl(urlInput.value || "ws://localhost:8766");
     }
     refreshSignalControlsStatus();
+
+    this.input.on('pointerdown', (pointer) => {
+        debugWarn(`Pointed at ${[pointer.worldX, pointer.worldY]}`);
+        targetSet = true;
+        targetX = pointer.worldX;
+        targetY = pointer.worldY;
+    });
 }
 
 function update() {
@@ -509,34 +520,65 @@ function update() {
 
     // Control player movement
     player.setVelocity(0);
-    let speed = 360;
+    const speed = 360;
 
     if (cursors.left.isDown) {
         player.setVelocityX(-speed);
-        player.setTexture('maxine_left');
+        targetSet = false;
     }
     else if (cursors.right.isDown) {
         player.setVelocityX(speed);
-        player.setTexture('maxine_right');
+        targetSet = false;
     }
 
     if (cursors.up.isDown) {
         player.setVelocityY(-speed);
-        player.setTexture('maxine_up');
+        targetSet = false;
     }
     else if (cursors.down.isDown) {
         player.setVelocityY(speed);
-        player.setTexture('maxine_down');
+        targetSet = false;
     }
 
     if (player.body.velocity.x === 0 && player.body.velocity.y === 0) {
         player.setTexture('maxine_neutral');
     }
 
+    // Move diagonally toward the target
+    if (targetSet) {
+        var angle = Phaser.Math.RadToDeg(
+            Phaser.Math.Angle.Between(
+                player.body.x, player.body.y,
+                targetX, targetY
+        ));
+        // Calculate direction unit vector from a sprite's angle (in radians)
+        const direction = this.physics.velocityFromAngle(angle, 1);
+
+        // Multiply by your desired speed to get final velocity
+        player.body.setVelocity(direction.x * speed, direction.y * speed);
+
+        debugWarn(`angle to point=${angle}; direction={${[direction.x, direction.y]}`)
+
+        if (Math.abs(player.body.x - targetX) < 5 &&
+            Math.abs(player.body.y - targetY) < 5) {
+                targetSet = false;
+            }
+    }
+
     if (pointOutsideSignalRing([player.x, player.y])) {
         [player.x, player.y] = player._MQoldPos;
     }
     player._MQoldPos = [player.x, player.y];
+
+    if (player.body.velocity.x < 0) {
+        player.setTexture('maxine_left');
+    } else if (player.body.velocity.x > 0) {
+        player.setTexture('maxine_right');
+    } else if (player.body.velocity.y < 0) {
+        player.setTexture('maxine_down');
+    } else if (player.body.velocity.y > 0) {
+        player.setTexture('maxine_up');
+    }
 
     // Update each mushroom's position and angle based on its spiral state
     mushrooms.children.iterate(function (mush) {
