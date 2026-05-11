@@ -2,8 +2,12 @@ const debug = false;
 
 var config = {
     type: Phaser.AUTO,
-    width: window.innerWidth,
-    height: window.innerHeight,
+    parent: 'game-container',
+    scale: {
+        mode: Phaser.Scale.FIT,
+    },
+    width: 2100,
+    height: 900,
     physics: {
         default: 'arcade',
         arcade: {
@@ -349,7 +353,7 @@ function create() {
 
     // Set camera bounds
     this.cameras.main.setBounds(0, 0, worldWidth, worldHeight);
-    this.cameras.main.startFollow(player);
+    //this.cameras.main.startFollow(player);
 
     //  Input Events
     cursors = this.input.keyboard.createCursorKeys();
