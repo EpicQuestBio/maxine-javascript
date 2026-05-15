@@ -73,6 +73,9 @@ var livingBackground;
 var livingBackgroundStep = 0;
 var livingBackgroundTileSize = 144;
 
+var consolePlayer;
+var challengePlayer;
+
 function debugWarn(message) {
     if (debug) {
         console.warn(message);
@@ -142,6 +145,9 @@ function preload() {
     this.load.image('switch_up', 'assets/switch_big_frame_1.png');
     this.load.image('switch_down', 'assets/switch_big_frame_2.png');
     this.load.image('tv', 'assets/tv.png');
+
+    this.load.image('challengeplayer', 'assets/challengeplayer.png');
+    this.load.image('consoleplayer', 'assets/consoleplayer.png');
 
     // LED font
     this.load.font('led_font', 'assets/ds-digi.ttf');
@@ -388,11 +394,17 @@ function create() {
     cursors = this.input.keyboard.createCursorKeys();
 
     //  The scores
-    consoleScoreText = this.add.text(16, 16, 'Zavier: 0',
+    consolePlayer = this.add.sprite(16, 16, 'consoleplayer');
+    consolePlayer.setOrigin(0);
+    consolePlayer.setScrollFactor(0);
+    consoleScoreText = this.add.text(70, 26, 'Zavier: 0',
          { fontSize: '32px', fill: '#ffffff', fontFamily: 'led_font' });
     consoleScoreText.setScrollFactor(0);
 
-    challengerScoreText = this.add.text(16, 48, 'Kent: 0', 
+    challengePlayer = this.add.sprite(16, 76, 'challengeplayer');
+    challengePlayer.setOrigin(0);
+    challengePlayer.setScrollFactor(0);
+    challengerScoreText = this.add.text(70, 86, 'Kent: 0', 
         { fontSize: '32px', fill: '#ffffff', fontFamily: 'led_font'});
     challengerScoreText.setScrollFactor(0);
 
