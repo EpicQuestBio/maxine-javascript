@@ -147,6 +147,8 @@ class VerticalLineRing {
 			debug: true,
 			logEvery: 60
 		});
+	
+		window.signalBuffer = this.signalBuffer;
 	}
 
 	setServerUrl(url) {
@@ -221,121 +223,37 @@ class VerticalLineRing {
 		this.connected = false;
 	}
 
-	// --- Core behavior: fixed slots + moving cursor ---
 	applyTick(tick) {
-		this.signalBuffer.applyTick(tick);
-
 		this.lastPacketTs = Date.now();
 		this.lastSource = tick.source || "unknown";
 
-		const ig = tick.interval_graph || {};
-		const bars = Array.isArray(ig.bars) ? ig.bars : [];
-		if (!bars.length) return;
+		const bucket = this.signalBuffer.applyTick(tick);
+		if (!bucket) return;
 
-		// Use server-provided baseline if available; otherwise derive from bars
-		let packetBaseline = Number(ig.baseline);
-		if (!Number.isFinite(packetBaseline)) {
-			let sum = 0, n = 0;
-			for (let i = 0; i < bars.length; i++) {
-				const m = Number(bars[i].mean);
-				if (Number.isFinite(m)) { sum += m; n++; }
-			}
-			packetBaseline = n > 0 ? (sum / n) : 0;
-		}
+		this.applyLatestSignalBucket(bucket);
+	}
 
-		// Smooth baseline so ring doesn't "breathe" too hard packet-to-packet
-		if (!Number.isFinite(this.ringBaseline)) this.ringBaseline = packetBaseline;
-		this.ringBaseline = (0.85 * this.ringBaseline) + (0.15 * packetBaseline);
+	applyLatestSignalBucket(bucket) {
+		const slot = (this.signalBuffer.getPresentBox() - 1 + numBoxes) % numBoxes;
 
-		// ---- Aggregate all packet bars into ONE write-bar ----
-		let aggMin = null;
-		let aggMax = null;
-		let meanSum = 0;
-		let meanCount = 0;
-		let anySpike = false;
-
-		for (let i = 0; i < bars.length; i++) {
-			const b = bars[i];
-			const bMin = Number(b.min);
-			const bMax = Number(b.max);
-			const bMean = Number(b.mean);
-
-			if (Number.isFinite(bMin)) {
-				if (aggMin === null || bMin < aggMin) aggMin = bMin;
-			}
-			if (Number.isFinite(bMax)) {
-				if (aggMax === null || bMax > aggMax) aggMax = bMax;
-			}
-			if (Number.isFinite(bMean)) {
-				meanSum += bMean;
-				meanCount++;
-			}
-			if (b.spike) anySpike = true;
-		}
-
-		if (aggMin === null || aggMax === null) return;
-		const aggMean = meanCount > 0 ? (meanSum / meanCount) : ((aggMin + aggMax) / 2);
-
-		const aggSpan = Math.max(0, aggMax - aggMin);
-
-		// Track recent packet history for normalization + persistence
-		this.recentSpikeFlags.push(anySpike ? 1 : 0);
-		this.recentSpanValues.push(aggSpan);
-
-		if (this.recentSpikeFlags.length > this.recentHistoryMax) this.recentSpikeFlags.shift();
-		if (this.recentSpanValues.length > this.recentHistoryMax) this.recentSpanValues.shift();
-
-		// Persistence = fraction of recent packets that were spikes
-		let spikeCount = 0;
-		for (let i = 0; i < this.recentSpikeFlags.length; i++) spikeCount += this.recentSpikeFlags[i];
-		const persistence = this.recentSpikeFlags.length > 0 ? (spikeCount / this.recentSpikeFlags.length) : 0;
-
-		// Normalize span against recent history (robust for sim vs real)
-		let maxRecentSpan = 1e-6;
-		for (let i = 0; i < this.recentSpanValues.length; i++) {
-			if (this.recentSpanValues[i] > maxRecentSpan) maxRecentSpan = this.recentSpanValues[i];
-		}
-		const spanNorm = Math.max(0, Math.min(1, aggSpan / maxRecentSpan));
-
-		this.lastPacketSummary = {
-			hadSpike: !!anySpike,
-			span: aggSpan,
-			spanNorm: spanNorm,
-			persistence: persistence,
-			mean: aggMean,
-			min: aggMin,
-			max: aggMax
-		};
-
-		// Write a SINGLE slot for this packet
-		const slot = this.presentBox;
-		this.rawBottom[slot] = aggMin;
-		this.rawTop[slot] = aggMax;
-		this.rawMean[slot] = aggMean;
-
-		this.spikeAtBox[slot] = anySpike;
+		this.rawBottom[slot] = bucket.min;
+		this.rawTop[slot] = bucket.max;
+		this.rawMean[slot] = bucket.mean;
+		this.spikeAtBox[slot] = bucket.spike;
 		this.hasData[slot] = true;
 
-		// Queue spike events for the game to consume.
-		// One packet can produce at most one monster spawn event here.
-		// (This keeps pacing controlled and matches "aggregated bar per packet".)
-		if (anySpike) {
-			this.pendingSpikeEvents += 1;
-			this.lastPacketHadSpike = true;
-		} else {
-			this.lastPacketHadSpike = false;
-		}
+		this.presentBox = this.signalBuffer.getPresentBox();
+		this.ringBaseline = this.signalBuffer.getExtents().baseline;
 
-		// Advance cursor by one slot per packet
-		this.presentBox = (this.presentBox + 1) % numBoxes;
+		this.lastPacketHadSpike = this.signalBuffer.lastPacketHadSpike;
+		this.lastPacketSummary = this.signalBuffer.getLastPacketSummary();
 
-		// Recompute global ring extents and rescale whole ring
 		this.recomputeRingScale();
 		this.rescaleDisplayArrays();
 	}
 
 	getLastPacketSummary() {
-		return this.lastPacketSummary;
+		return this.signalBuffer.getLastPacketSummary();
 	}
 
 	recomputeRingScale() {
@@ -406,20 +324,11 @@ class VerticalLineRing {
 	}
 
 	consumePendingSpikeEvents(maxCount) {
-		// Returns how many queued server spike events to use this frame.
-		// If maxCount is omitted, consume all.
-		if (!Number.isFinite(maxCount)) {
-			maxCount = this.pendingSpikeEvents;
-		}
-		maxCount = Math.max(0, Math.floor(maxCount));
-
-		const n = Math.min(this.pendingSpikeEvents, maxCount);
-		this.pendingSpikeEvents -= n;
-		return n;
+		return this.signalBuffer.consumePendingSpikeEvents(maxCount);
 	}
 
 	clearPendingSpikeEvents() {
-		this.pendingSpikeEvents = 0;
+		this.signalBuffer.clearPendingSpikeEvents();
 	}
 
 	getPresentAngle() {

@@ -481,22 +481,22 @@ function create() {
     // Add controls
     controls = new Controls(this);
 
-    signalBuffer = new SignalBuffer({
-        maxBuckets: 600,
-        mode: "packet",
-        debug: true,
-        logEvery: 60
-    });
+    // signalBuffer = new SignalBuffer({
+    //     maxBuckets: 600,
+    //     mode: "packet",
+    //     debug: true,
+    //     logEvery: 60
+    // });
 
-    window.debugSignalBuffer = function () {
-        if (!signalBuffer) {
-            console.log("No signalBuffer yet");
-            return;
-        }
+    // window.debugSignalBuffer = function () {
+    //     if (!signalBuffer) {
+    //         console.log("No signalBuffer yet");
+    //         return;
+    //     }
 
-        signalBuffer.logStatus();
-        return signalBuffer;
-    };
+    //     signalBuffer.logStatus();
+    //     return signalBuffer;
+    // };
 
     // Create the vertical line ring
     // Start in random mode by default (safe fallback)
