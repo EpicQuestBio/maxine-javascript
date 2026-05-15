@@ -517,6 +517,9 @@ function create() {
 
     var urlInput = document.getElementById("signalServerUrl");
     if (urlInput && typeof vlr.setServerUrl === "function") {
+        const defaultSignalUrl =
+            window.location.protocol === "https:" ? "wss://epicquest.bio/api/molecular/ws" : "ws://localhost:8766";
+        urlInput.value = defaultSignalUrl;
         vlr.setServerUrl(urlInput.value || "ws://localhost:8766");
     }
     refreshSignalControlsStatus();
