@@ -69,6 +69,10 @@ var targetSet = false;
 var targetX = null;
 var targetY = null;
 
+var livingBackground;
+var livingBackgroundStep = 0;
+var livingBackgroundTileSize = 144;
+
 function debugWarn(message) {
     if (debug) {
         console.warn(message);
@@ -126,6 +130,11 @@ function preload() {
 
     // // load background video
     // this.load.video('mountains', 'mountains.mp4', true);
+    // load tiled background
+    this.load.image(
+        'background_living_tissue',
+        'assets/background_living_tissue.png'
+    );
 
     // Control panel
     this.load.image('panel', 'assets/panel.png');
@@ -337,6 +346,18 @@ function create() {
     // Set world bounds
     this.physics.world.setBounds(0, 0, worldWidth, worldHeight);
 
+    // Establish cool background. tileSprite makes it tiled
+    livingBackground = this.add.tileSprite(
+        0,
+        0,
+        config.width,
+        config.height,
+        'background_living_tissue'
+    );
+
+    livingBackground.setOrigin(0, 0);
+    livingBackground.setDepth(-100);
+
     // The torus
     var left = worldCenter[0];
     var top = worldCenter[1];
@@ -545,6 +566,13 @@ function create() {
 }
 
 function update() {
+    livingBackgroundStep = (livingBackgroundStep + 1) % livingBackgroundTileSize;
+
+    if (livingBackground) {
+        livingBackground.tilePositionX = -livingBackgroundStep;
+        livingBackground.tilePositionY = -livingBackgroundStep;
+    }
+
     if (debug) {
         this.debugText.setText([
             `Spore count: ${projectiles.getChildren().length}`,
