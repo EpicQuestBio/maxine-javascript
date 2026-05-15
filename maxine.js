@@ -40,6 +40,7 @@ var pore;
 var boomFrames = [];
 var spinshroomFrames = [];
 var mushromancerFrames = [];
+var signalBuffer = null;
 var vlr;
 var signalMode = "random";   // "random" or "live"
 var signalStatusRefreshTick = 0;
@@ -479,6 +480,23 @@ function create() {
 
     // Add controls
     controls = new Controls(this);
+
+    signalBuffer = new SignalBuffer({
+        maxBuckets: 600,
+        mode: "packet",
+        debug: true,
+        logEvery: 60
+    });
+
+    window.debugSignalBuffer = function () {
+        if (!signalBuffer) {
+            console.log("No signalBuffer yet");
+            return;
+        }
+
+        signalBuffer.logStatus();
+        return signalBuffer;
+    };
 
     // Create the vertical line ring
     // Start in random mode by default (safe fallback)

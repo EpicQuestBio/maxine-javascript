@@ -140,6 +140,13 @@ class VerticalLineRing {
 		this.recentSpikeFlags = [];   // array of 0/1
 		this.recentSpanValues = [];   // recent packet spans (for normalization)
 		this.recentHistoryMax = 12;
+
+		this.signalBuffer = new SignalBuffer({
+			maxBuckets: numBoxes,
+			mode: "packet",
+			debug: true,
+			logEvery: 60
+		});
 	}
 
 	setServerUrl(url) {
@@ -216,6 +223,8 @@ class VerticalLineRing {
 
 	// --- Core behavior: fixed slots + moving cursor ---
 	applyTick(tick) {
+		this.signalBuffer.applyTick(tick);
+
 		this.lastPacketTs = Date.now();
 		this.lastSource = tick.source || "unknown";
 
