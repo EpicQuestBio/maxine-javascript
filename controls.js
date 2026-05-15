@@ -13,6 +13,9 @@ class Controls {
         this.voltageText = scene.add.text(1850, 560, '0MV',
          { fontSize: '24px', fill: '#ff0000', fontFamily: 'led_font' });
 
+        this.tvFrame = scene.add.sprite(1960, 150, 'tv');
+        this.tvFrame.setDepth(60);
+        
         // The object that moves with the mouse in the main update loop if 
         // activateControlsAdjuster is turned on
         this.adjustableObject = this.voltageText;

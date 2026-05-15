@@ -42,6 +42,7 @@ var spinshroomFrames = [];
 var mushromancerFrames = [];
 var signalBuffer = null;
 var vlr;
+var clayTVGraph;
 var signalMode = "random";   // "random" or "live"
 var signalStatusRefreshTick = 0;
 var signalRingStatusTimer = 0;
@@ -131,6 +132,7 @@ function preload() {
     this.load.image('knob', 'assets/voltage_knob.png');
     this.load.image('switch_up', 'assets/switch_big_frame_1.png');
     this.load.image('switch_down', 'assets/switch_big_frame_2.png');
+    this.load.image('tv', 'assets/tv.png');
 
     // LED font
     this.load.font('led_font', 'assets/ds-digi.ttf');
@@ -525,6 +527,18 @@ function create() {
         targetX = pointer.worldX;
         targetY = pointer.worldY;
     });
+
+    clayTVGraph = new ClayTVCurrentGraph(this, vlr.signalBuffer, {
+        rect: {
+            x: 1850,
+            y: 80,
+            width: 210,
+            height: 150
+        },
+        depth: 55,
+        padding: 5
+    });
+
 }
 
 function update() {
@@ -763,6 +777,10 @@ function update() {
 
     if (signalMode === "live" && controls) {
         controls.syncVisualState();
+    }
+
+    if (clayTVGraph) {
+        clayTVGraph.update();
     }
 }
 
