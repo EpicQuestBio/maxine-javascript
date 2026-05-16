@@ -1,12 +1,12 @@
 const worldWidth = 1800;
 const worldHeight = 900;
-const worldCenter = [worldWidth / 2, worldHeight / 2];
+const worldCenter = [worldWidth / 2 + 120, worldHeight / 2];
 
 const torusThickness = 75;
 
 const maxineStart = [worldCenter[0] + 200, worldCenter[1]];
 
-const torusOuterWidth = worldWidth;
+const torusOuterWidth = worldWidth - 300;
 const torusOuterHeight = worldHeight;
 
 const torusInnerWidth = torusOuterWidth - torusThickness * 2;
