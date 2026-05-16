@@ -5,12 +5,15 @@ var config = {
     parent: 'game-container',
     scale: {
         mode: Phaser.Scale.FIT,
-        autoCenter: Phaser.Scale.CENTER_BOTH
+//        autoCenter: Phaser.Scale.CENTER_BOTH
     },
     // The controls code assumed 2100:900 so I increased the height to fix the
     // aspect ratio
     width: 2100,
     height: 1181, // 2100 * (9 / 16)
+    dom: {
+        createContainer: true
+    },
     physics: {
         default: 'arcade',
         arcade: {
@@ -80,6 +83,7 @@ var challengePlayer;
 
 var chatFrame;
 var chatBox;
+var chatInputBox;
 
 function debugWarn(message) {
     if (debug) {
@@ -582,7 +586,42 @@ function create() {
         padding: 5
     });
 
-    chatBox = new ChatBox(this, controls.chatRect);
+    const chatMessagesRect = {
+        x: controls.chatRect.x,
+        y: controls.chatRect.y,
+        width: controls.chatRect.width,
+        height: controls.chatRect.height - 38
+    };
+
+    chatBox = new ChatBox(this, chatMessagesRect, {
+        depth: 70,
+        padding: 10,
+        fontSize: "15px",
+        color: "#d7ffd7",
+        maxMessages: 8,
+        bgAlpha: 0.55
+    });
+
+    const chatInputRect = {
+        x: controls.chatRect.x + 10,
+        y: controls.chatRect.y + controls.chatRect.height - 34,
+        width: controls.chatRect.width - 20,
+        height: 26
+    };
+
+    chatInputBox = new ChatInputBox(this, chatInputRect, {
+        depth: 95,
+        placeholder: "Say something...",
+        fontSize: "15px",
+        onSubmit: (message) => {
+            if (chatBox) {
+                chatBox.addMessage(message, "You");
+            }
+
+            // Later: send to server / multiplayer / session log here.
+            console.log("chat message:", message);
+        }
+    });
 }
 
 function update() {
@@ -836,6 +875,9 @@ function update() {
 
     if (chatBox) {
         chatBox.draw();
+    }
+    if (chatInputBox) {
+        chatInputBox.updatePosition();
     }
 }
 
