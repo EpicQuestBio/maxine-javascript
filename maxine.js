@@ -7,8 +7,10 @@ var config = {
         mode: Phaser.Scale.FIT,
         autoCenter: Phaser.Scale.CENTER_BOTH
     },
+    // The controls code assumed 2100:900 so I increased the height to fix the
+    // aspect ratio
     width: 2100,
-    height: 900,
+    height: 1181, // 2100 * (9 / 16)
     physics: {
         default: 'arcade',
         arcade: {
@@ -77,6 +79,7 @@ var consolePlayer;
 var challengePlayer;
 
 var chatFrame;
+var chatBox;
 
 function debugWarn(message) {
     if (debug) {
@@ -578,6 +581,8 @@ function create() {
         depth: 55,
         padding: 5
     });
+
+    chatBox = new ChatBox(this, controls.chatRect);
 }
 
 function update() {
@@ -827,6 +832,11 @@ function update() {
 
     if (clayTVGraph) {
         clayTVGraph.update();
+    }
+
+    if (chatBox) {
+        chatBox.update();
+        chatBox.draw();
     }
 }
 

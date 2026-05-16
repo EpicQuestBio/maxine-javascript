@@ -1,5 +1,5 @@
 const worldWidth = 1800;
-const worldHeight = 900;
+const worldHeight = 1181;
 const worldCenter = [worldWidth / 2 + 120, worldHeight / 2];
 
 const torusThickness = 75;

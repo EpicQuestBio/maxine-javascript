@@ -1,22 +1,34 @@
 class Controls {
     constructor(scene) {
+        // The game was originally 2100:900 when I added the controls so since it's
+        // now about 2100:1181 (16:9 widescreen) you should add 281 to everything that
+        // should be at the bottom
+        let f = 281 
+
         this.activateControlsAdjuster = false;
         this.game = scene;
-        this.panel = scene.add.sprite(1790, 607, 'panel');
+        this.panel = scene.add.sprite(1790, 607+f, 'panel');
         this.panel.setOrigin(0.5);
-        this.voltageKnob = scene.add.sprite(1894, 490, 'knob');
+        this.voltageKnob = scene.add.sprite(1894, 490+f, 'knob');
         this.voltageKnob.setOrigin(0.5);
-        this.zapper = scene.add.sprite(2030, 550, 'switch_up');
+        this.zapper = scene.add.sprite(2030, 550+f, 'switch_up');
         this.zapperOn = false;
         this.voltageSetting = 0;
         this.millivolts = 0;
-        this.voltageText = scene.add.text(1850, 560, '0MV',
+        this.voltageText = scene.add.text(1850, 560+f, '0MV',
          { fontSize: '24px', fill: '#ff0000', fontFamily: 'led_font' });
 
         this.tvFrame = scene.add.sprite(1960, 150, 'tv');
         this.tvFrame.setDepth(60);
 
-        this.chatFrame = scene.add.sprite(150, 450, 'chat');
+        this.chatFrame = scene.add.sprite(0, 302, 'chat');
+        this.chatFrame.setOrigin(0);
+        this.chatRect = {
+            x: this.chatFrame.x + 12,
+            y: this.chatFrame.y + 12,
+            width: 246,
+            height: 265
+        }
         
         // The object that moves with the mouse in the main update loop if 
         // activateControlsAdjuster is turned on
