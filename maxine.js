@@ -835,7 +835,6 @@ function update() {
     }
 
     if (chatBox) {
-        chatBox.update();
         chatBox.draw();
     }
 }
