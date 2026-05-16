@@ -76,6 +76,8 @@ var livingBackgroundTileSize = 144;
 var consolePlayer;
 var challengePlayer;
 
+var chatFrame;
+
 function debugWarn(message) {
     if (debug) {
         console.warn(message);
@@ -148,6 +150,8 @@ function preload() {
 
     this.load.image('challengeplayer', 'assets/challengeplayer.png');
     this.load.image('consoleplayer', 'assets/consoleplayer.png');
+
+    this.load.image('chat', 'assets/chatwindowtransparent.png');
 
     // LED font
     this.load.font('led_font', 'assets/ds-digi.ttf');
@@ -574,7 +578,6 @@ function create() {
         depth: 55,
         padding: 5
     });
-
 }
 
 function update() {

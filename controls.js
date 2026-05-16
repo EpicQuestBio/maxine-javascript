@@ -15,10 +15,12 @@ class Controls {
 
         this.tvFrame = scene.add.sprite(1960, 150, 'tv');
         this.tvFrame.setDepth(60);
+
+        this.chatFrame = scene.add.sprite(150, 450, 'chat');
         
         // The object that moves with the mouse in the main update loop if 
         // activateControlsAdjuster is turned on
-        this.adjustableObject = this.voltageText;
+        this.adjustableObject = this.chatFrame;
 
         // 1. Make the sprite interactive
         this.zapper.setInteractive();
